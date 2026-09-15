@@ -32,8 +32,9 @@ WAIT_BEFORE_READ_SECONDS = 0      # Gemini 还在生成时，可以改成 1 或 
 
 SAVE_AFTER_RUN = True            # True=跑完后自动保存 WPS；第一次测试保持 False
 ```
-
 ### ==================================================
+
+<img width="1920" height="1040" alt="image" src="https://github.com/user-attachments/assets/733255f7-8ef0-4f66-bc00-020da94a29a6" />
 
 ### 一、实际业务流程
 
