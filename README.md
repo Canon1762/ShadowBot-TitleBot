@@ -12,25 +12,27 @@
 
 ### ==================== 只改这里 ====================
 ```
-TARGET_COL = "B"                 # 目标列，例如 B
+TARGET_COL = "B"                   # 目标列，例如 B
 
-START_ROW = 2                    # 第一个绿色行；如果第一个绿色行是 86，就填 86
+START_ROW = 2                      # 第一个绿色行；如果第一个绿色行是 86，就填 86
 
-ROW_STEP = 4                     # 每次向下跳几行；你的表是 4
+ROW_STEP = 4                       # 每次向下跳几行；你的表是 4
 
-MAX_ITEMS = 10                    # 先填 1 测试；正式批量时填实际条数
+MAX_ITEMS = 10                     # 先填 1 测试；正式批量时填实际条数
 
-SHEET_NAME = ""                  # 留空 = 当前激活的工作表；也可以填 "Sheet1"
+SHEET_NAME = ""                    # 留空 = 当前激活的工作表；也可以填 "Sheet1"
 
 GEMINI_URL_KEYWORD = "gemini.google.com"
 
-BROWSER_MODE = "chrome"           # chrome=谷歌浏览器；edge=Edge；cef=影刀浏览器
+BROWSER_MODE = "chrome"            # chrome=谷歌浏览器；edge=Edge；cef=影刀浏览器
 
-READ_MODE = "batch"              # single=每次读最后一条标题；batch=一次读最后回复里的所有标题
+PAGE_PICK_MODE = "active"          # active=只抓当前选中的网页；latest=多个匹配时取最新打开的网页
 
-WAIT_BEFORE_READ_SECONDS = 0      # Gemini 还在生成时，可以改成 1 或 2
+READ_MODE = "batch"                # single=每次读最后一条标题；batch=一次读最后回复里的所有标题
 
-SAVE_AFTER_RUN = True            # True=跑完后自动保存 WPS；第一次测试保持 False
+WAIT_BEFORE_READ_SECONDS = 0       # Gemini 还在生成时，可以改成 1 或 2
+
+SAVE_AFTER_RUN = True              # True=跑完后自动保存 WPS；第一次测试保持 False
 ```
 ### ==================================================
 
