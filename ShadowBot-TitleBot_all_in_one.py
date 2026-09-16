@@ -31,6 +31,7 @@ MAX_ITEMS = 10                    # 先填 1 测试；正式批量时填实际�
 SHEET_NAME = ""                   # 留空 = 当前激活的工作表；也可以填 "Sheet1"
 GEMINI_URL_KEYWORD = "gemini.google.com"
 BROWSER_MODE = "chrome"           # chrome=谷歌浏览器；edge=Edge；cef=影刀浏览器
+PAGE_PICK_MODE = "active"          # active=只抓当前选中的网页；latest=多个匹配时取最新打开的网页
 READ_MODE = "batch"               # single=每次读最后一条标题；batch=一次读最后回复里的所有标题
 WAIT_BEFORE_READ_SECONDS = 0      # Gemini 还在生成时，可以改成 1 或 2
 SAVE_AFTER_RUN = True             # True=跑完后自动保存 WPS；第一次测试保持 False
@@ -227,6 +228,33 @@ def _read_titles(browser, all_titles):
     text = str(result).strip()
     return [text] if text else []
 
+def _get_target_browser():
+    """多开 Gemini 页面时，默认只抓当前选中的那个网页。"""
+    if PAGE_PICK_MODE == "active":
+        browser = xbot.web.get_active(mode=BROWSER_MODE, load_timeout=0)
+
+        current_url = ""
+        try:
+            current_url = browser.get_url() or ""
+        except Exception:
+            current_url = ""
+
+        if GEMINI_URL_KEYWORD not in current_url:
+            raise TitleError(
+                f"当前选中的网页不是 Gemini：{current_url!r}。"
+                f"请先点到要处理的 Gemini 标签页，"
+                f"或把 PAGE_PICK_MODE 改成 'latest'。"
+            )
+        return browser
+
+    if PAGE_PICK_MODE == "latest":
+        return xbot.web.get(
+            url=GEMINI_URL_KEYWORD,
+            mode=BROWSER_MODE,
+            load_timeout=0,
+        )
+
+    raise TitleError('PAGE_PICK_MODE 只能是 "active" 或 "latest"')
 
 def run():
     if MAX_ITEMS <= 0:
@@ -234,11 +262,12 @@ def run():
     if READ_MODE not in ("single", "batch"):
         raise TitleError('READ_MODE 只能是 "single" 或 "batch"')
 
-    browser = xbot.web.get(
-        url=GEMINI_URL_KEYWORD,
-        mode=BROWSER_MODE,
-        load_timeout=0,
-    )
+    browser = _get_target_browser()
+
+    try:
+        print(f"本次处理网页：{browser.get_title()} | {browser.get_url()}")
+    except Exception:
+        pass
 
     workbook = xbot.excel.get_active_workbook()
     if SHEET_NAME:
