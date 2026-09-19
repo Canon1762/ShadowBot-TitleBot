@@ -1,6 +1,6 @@
-# ShadowBot-RPA-APP-Chrome-Titles-to-WPS-sheet
+# 影刀 RPA：Gemini 商品标题提取器
 
-影刀 RPA（6.3.22以上版本）专用，自动将 Chrome 中的商品标题写入 WPS 表格。
+专用于批量导出 Gemini 提示词结尾附带的商品标题至 WPS 表格，适用于影刀 RPA（6.3.22以上版本）。
 
 ### 用法：
 1. 在影刀 6.3.22 的可视化流程里，搜索“插入代码段(Python)”；
