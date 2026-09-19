@@ -9,6 +9,7 @@
 4. 先令 MAX_ITEMS = 1 测试一行，成功后再改成正式数量。
 
 这段代码不调用任何 AI API，不使用 OCR，不依赖屏幕坐标。
+多开 Gemini 页面时，默认只处理“当前选中的那个 Gemini 网页”。
 """
 
 import json
@@ -42,10 +43,25 @@ class TitleError(ValueError):
     """标题清洗或替换失败。"""
 
 
-_TITLE_MARKER_RE = re.compile(r"商品标题\s*[:：]\s*")
+# Gemini 有时会把标题标记写成英文 "Product Title:"，甚至写成
+# "商品标题 (Product Title):" 这种中英混写，所以这里统一兼容。
+_TITLE_MARKER_PATTERN = (
+    r"(?:"
+    r"商品标题(?:\s*[（(]\s*Product\s*Title\s*[)）])?"
+    r"|"
+    r"Product\s*Title(?:\s*[（(]\s*商品标题\s*[)）])?"
+    r")"
+)
+_TITLE_MARKER_RE = re.compile(_TITLE_MARKER_PATTERN + r"\s*[:：]\s*", re.IGNORECASE)
 _MARKDOWN_PREFIX_RE = re.compile(r"^(?:(?:[-*•]\s*)|\d+[.、]\s*)+")
 _STOP_HEADING_RE = re.compile(
-    r"^(?:设计|创意|推荐|完整|英文|参数|提示词|描述|风格|用途|注意事项|注意)[^：:]*[:：]"
+    r"^(?:"
+    r"(?:设计|创意|推荐|完整|英文|参数|提示词|描述|风格|用途|注意事项|注意)[^：:]*[:：]"
+    r"|"
+    r"(?:Design|Creative|Recommend|Complete|English|Parameters?|Prompt|Description"
+    r"|Style|Usage|Notes?|Attention)\b[^：:]*[:：]"
+    r")",
+    re.IGNORECASE,
 )
 
 
@@ -88,6 +104,14 @@ def _extract_after_marker(text):
 
 
 def extract_gemini_title(raw_title):
+    """
+    兼容的标题标记：
+    - 商品标题：xxx
+    - **商品标题：**xxx
+    - Product Title: xxx
+    - **Product Title:** xxx
+    - 商品标题 (Product Title): xxx
+    """
     if raw_title is None:
         raise TitleError("Gemini 读取结果为空")
 
@@ -101,10 +125,14 @@ def extract_gemini_title(raw_title):
     else:
         non_empty_lines = [line.strip() for line in text.split("\n") if line.strip()]
         if len(non_empty_lines) != 1:
-            raise TitleError("未找到“商品标题：”标记，且文本是多行，已停止")
+            raise TitleError(
+                "未找到“商品标题：”或“Product Title:”标记，且文本是多行，已停止"
+            )
         title = _strip_markdown_prefix(non_empty_lines[0])
         if len(title) > 200:
-            raise TitleError("未找到“商品标题：”标记，且文本超过 200 字，已停止")
+            raise TitleError(
+                "未找到“商品标题：”或“Product Title:”标记，且文本超过 200 字，已停止"
+            )
 
     title = re.sub(r"\s+", " ", title).strip()
     if not title:
@@ -142,7 +170,9 @@ def replace_title_between_commas(old_text, new_title, row_no=None):
 
 JS_GET_ONE_TITLE = r"""
 function () {
-  const marker = /商品标题\s*[:：]\s*/;
+  const marker = /(?:商品标题(?:\s*[（(]\s*Product\s*Title\s*[)）])?|Product\s*Title(?:\s*[（(]\s*商品标题\s*[)）])?)\s*[:：]\s*/i;
+  const hasTitleText = (value) =>
+    (value || "").replace(marker, "").replace(/[*`_~\s]+/g, "").length > 0;
   const responses = Array.from(document.querySelectorAll("model-response"));
   const scope = responses.length
     ? responses[responses.length - 1]
@@ -156,12 +186,12 @@ function () {
       .replace(/\u00a0/g, " ")
       .trim();
     if (!marker.test(text)) return false;
-    if (!text.replace(marker, "").trim()) return false;
+    if (!hasTitleText(text)) return false;
     const childHasFullText = Array.from(el.children).some((child) => {
       const childText = (child.innerText || child.textContent || "")
         .replace(/\u00a0/g, " ")
         .trim();
-      return marker.test(childText) && childText.replace(marker, "").trim();
+      return marker.test(childText) && hasTitleText(childText);
     });
     return !childHasFullText;
   });
@@ -175,7 +205,9 @@ function () {
 
 JS_GET_ALL_TITLES = r"""
 function () {
-  const marker = /商品标题\s*[:：]\s*/;
+  const marker = /(?:商品标题(?:\s*[（(]\s*Product\s*Title\s*[)）])?|Product\s*Title(?:\s*[（(]\s*商品标题\s*[)）])?)\s*[:：]\s*/i;
+  const hasTitleText = (value) =>
+    (value || "").replace(marker, "").replace(/[*`_~\s]+/g, "").length > 0;
   const responses = Array.from(document.querySelectorAll("model-response"));
   const scope = responses.length
     ? responses[responses.length - 1]
@@ -189,12 +221,12 @@ function () {
       .replace(/\u00a0/g, " ")
       .trim();
     if (!marker.test(text)) return false;
-    if (!text.replace(marker, "").trim()) return false;
+    if (!hasTitleText(text)) return false;
     const childHasFullText = Array.from(el.children).some((child) => {
       const childText = (child.innerText || child.textContent || "")
         .replace(/\u00a0/g, " ")
         .trim();
-      return marker.test(childText) && childText.replace(marker, "").trim();
+      return marker.test(childText) && hasTitleText(childText);
     });
     return !childHasFullText;
   }).map((el) => (el.innerText || el.textContent || "").trim());
@@ -228,6 +260,7 @@ def _read_titles(browser, all_titles):
     text = str(result).strip()
     return [text] if text else []
 
+
 def _get_target_browser():
     """多开 Gemini 页面时，默认只抓当前选中的那个网页。"""
     if PAGE_PICK_MODE == "active":
@@ -256,6 +289,7 @@ def _get_target_browser():
 
     raise TitleError('PAGE_PICK_MODE 只能是 "active" 或 "latest"')
 
+
 def run():
     if MAX_ITEMS <= 0:
         raise TitleError("MAX_ITEMS 必须大于 0")
@@ -278,7 +312,9 @@ def run():
     if READ_MODE == "batch":
         titles = _read_titles(browser, all_titles=True)
         if not titles:
-            raise TitleError("Gemini 页面没有读取到任何“商品标题：”内容")
+            raise TitleError(
+                "Gemini 页面没有读取到任何“商品标题：”或“Product Title:”内容"
+            )
         if len(titles) < MAX_ITEMS:
             print(
                 f"提示：Gemini 只读到 {len(titles)} 条标题，"
@@ -301,7 +337,9 @@ def run():
         else:
             one = _read_titles(browser, all_titles=False)
             if not one:
-                raise TitleError(f"第{row}行：Gemini 没有读取到“商品标题：”内容")
+                raise TitleError(
+                    f"第{row}行：Gemini 没有读取到“商品标题：”或“Product Title:”内容"
+                )
             raw_title = one[0]
 
         old_text = sheet.get_cell(row, TARGET_COL, using_text=True)
